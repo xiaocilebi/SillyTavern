@@ -11,6 +11,7 @@ import {
     comment_avatar,
     deactivateSendButtons,
     default_avatar,
+    deleteSwipe,
     eventSource,
     event_types,
     extension_prompt_roles,
@@ -796,6 +797,27 @@ export function initDefaultSlashCommands() {
                 defaultValue: 'false',
                 enumList: commonEnumProviders.boolean('trueFalse')(),
             }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'cssClass',
+                description: 'additional CSS class to add to the toast message (e.g. for custom styling)',
+                typeList: [ARGUMENT_TYPE.STRING],
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'color',
+                description: 'custom CSS color of the toast message. Accepts all valid CSS color values (e.g. \'red\', \'#FF0000\', \'rgb(255, 0, 0)\').<br />>Can be more customizable with the \'cssClass\' argument and custom classes.',
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'escapeHtml',
+                description: 'whether to escape HTML in the toast message.',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                defaultValue: 'true',
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'onClick',
+                description: 'a closure to call when the toast is clicked. This executed closure receives scope as provided in the script. Careful about possible side effects when manipulating variables and more.',
+                typeList: [ARGUMENT_TYPE.CLOSURE],
+            }),
         ],
         unnamedArgumentList: [
             new SlashCommandArgument(
@@ -804,13 +826,19 @@ export function initDefaultSlashCommands() {
         ],
         helpString: `
         <div>
-            Echoes the provided text to a toast message. Useful for pipes debugging.
+            Echoes the provided text to a toast message. Can be used to display informational messages or for pipes debugging.
         </div>
         <div>
             <strong>Example:</strong>
             <ul>
                 <li>
-                    <pre><code>/echo title="My Message" severity=info This is an info message</code></pre>
+                    <pre><code>/echo title="My Message" severity=warning This is a warning message</code></pre>
+                </li>
+                <li>
+                    <pre><code>/echo color=purple This message is purple</code></pre>
+                </li>
+                <li>
+                    <pre><code>/echo onClick={: /echo escapeHtml=false color=transparent cssClass=wider_dialogue_popup &lt;img src="/img/five.png" /&gt; :} timeout=5000 Clicking on this message within 5 seconds will open the image.</code></pre>
                 </li>
             </ul>
         </div>
@@ -1239,20 +1267,59 @@ export function initDefaultSlashCommands() {
         callback: popupCallback,
         returns: 'popup text',
         namedArgumentList: [
-            new SlashCommandNamedArgument(
-                'large', 'show large popup', [ARGUMENT_TYPE.BOOLEAN], false, false, null, commonEnumProviders.boolean('onOff')(),
-            ),
-            new SlashCommandNamedArgument(
-                'wide', 'show wide popup', [ARGUMENT_TYPE.BOOLEAN], false, false, null, commonEnumProviders.boolean('onOff')(),
-            ),
-            new SlashCommandNamedArgument(
-                'okButton', 'text for the OK button', [ARGUMENT_TYPE.STRING], false,
-            ),
+            SlashCommandNamedArgument.fromProps({
+                name: 'large',
+                description: 'show large popup',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+                defaultValue: 'false',
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'wide',
+                description: 'show wide popup',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+                defaultValue: 'false',
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'wider',
+                description: 'show wider popup',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+                defaultValue: 'false',
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'transparent',
+                description: 'show transparent popup',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+                defaultValue: 'false',
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'okButton',
+                description: 'text for the OK button',
+                typeList: [ARGUMENT_TYPE.STRING],
+                defaultValue: 'OK',
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'cancelButton',
+                description: 'text for the Cancel button',
+                typeList: [ARGUMENT_TYPE.STRING],
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'result',
+                description: 'if enabled, returns the popup result (as an integer) instead of the popup text. Resolves to 1 for OK and 0 cancel button, empty string for exiting out.',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+                defaultValue: 'false',
+            }),
         ],
         unnamedArgumentList: [
-            new SlashCommandArgument(
-                'text', [ARGUMENT_TYPE.STRING], true,
-            ),
+            SlashCommandArgument.fromProps({
+                description: 'popup text',
+                typeList: [ARGUMENT_TYPE.STRING],
+                isRequired: true,
+            }),
         ],
         helpString: `
         <div>
@@ -1263,7 +1330,10 @@ export function initDefaultSlashCommands() {
             <strong>Example:</strong>
             <ul>
                 <li>
-                    <pre><code>/popup large=on wide=on okButton="Submit" Enter some text:</code></pre>
+                    <pre><code>/popup large=on wide=on okButton="Confirm" Please confirm this action.</code></pre>
+                </li>
+                <li>
+                    <pre><code>/popup okButton="Left" cancelButton="Right" result=true Do you want to go left or right? | /echo 0 means right, 1 means left. Choice: {{pipe}}</code></pre>
                 </li>
             </ul>
         </div>
@@ -1415,7 +1485,22 @@ export function initDefaultSlashCommands() {
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
         name: 'listinjects',
         callback: listInjectsCallback,
-        helpString: 'Lists all script injections for the current chat.',
+        helpString: 'Lists all script injections for the current chat. Displays injects in a popup by default. Use the <code>format</code> argument to change the output format.',
+        returns: 'JSON object of script injections',
+        namedArgumentList: [
+            SlashCommandNamedArgument.fromProps({
+                name: 'format',
+                description: 'output format',
+                typeList: [ARGUMENT_TYPE.STRING],
+                isRequired: true,
+                forceEnum: true,
+                enumList: [
+                    new SlashCommandEnumValue('popup', 'Show injects in a popup.', enumTypes.enum, enumIcons.default),
+                    new SlashCommandEnumValue('chat', 'Post a system message to the chat.', enumTypes.enum, enumIcons.default),
+                    new SlashCommandEnumValue('none', 'Just return the injects as a JSON object.', enumTypes.enum, enumIcons.default),
+                ],
+            }),
+        ],
     }));
     SlashCommandParser.addCommandObject(SlashCommand.fromProps({
         name: 'flushinject',
@@ -1449,11 +1534,20 @@ export function initDefaultSlashCommands() {
         name: 'model',
         callback: modelCallback,
         returns: 'current model',
+        namedArgumentList: [
+            SlashCommandNamedArgument.fromProps({
+                name: 'quiet',
+                description: 'suppress the toast message on model change',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                defaultValue: 'false',
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+            }),
+        ],
         unnamedArgumentList: [
             SlashCommandArgument.fromProps({
                 description: 'model name',
                 typeList: [ARGUMENT_TYPE.STRING],
-                enumProvider: () => getModelOptions()?.options.map(option => new SlashCommandEnumValue(option.value, option.value !== option.text ? option.text : null)),
+                enumProvider: () => getModelOptions(true)?.options?.map(option => new SlashCommandEnumValue(option.value, option.value !== option.text ? option.text : null)) ?? [],
             }),
         ],
         helpString: 'Sets the model for the current API. Gets the current model name if no argument is provided.',
@@ -1535,6 +1629,13 @@ export function initDefaultSlashCommands() {
                 description: 'Whether to auto-connect to the API after setting the URL',
                 typeList: [ARGUMENT_TYPE.BOOLEAN],
                 defaultValue: 'true',
+                enumList: commonEnumProviders.boolean('trueFalse')(),
+            }),
+            SlashCommandNamedArgument.fromProps({
+                name: 'quiet',
+                description: 'suppress the toast message on API change',
+                typeList: [ARGUMENT_TYPE.BOOLEAN],
+                defaultValue: 'false',
                 enumList: commonEnumProviders.boolean('trueFalse')(),
             }),
         ],
@@ -1657,10 +1758,11 @@ function injectCallback(args, value) {
     return '';
 }
 
-function listInjectsCallback() {
+async function listInjectsCallback(args) {
+    const type = String(args?.format).toLowerCase().trim();
     if (!chat_metadata.script_injects || !Object.keys(chat_metadata.script_injects).length) {
-        toastr.info('No script injections for the current chat');
-        return '';
+        type !== 'none' && toastr.info('No script injections for the current chat');
+        return JSON.stringify({});
     }
 
     const injects = Object.entries(chat_metadata.script_injects)
@@ -1675,7 +1777,19 @@ function listInjectsCallback() {
     const messageText = `### Script injections:\n${injects}`;
     const htmlMessage = DOMPurify.sanitize(converter.makeHtml(messageText));
 
-    sendSystemMessage(system_message_types.GENERIC, htmlMessage);
+    switch (type) {
+        case 'none':
+            break;
+        case 'chat':
+            sendSystemMessage(system_message_types.GENERIC, htmlMessage);
+            break;
+        case 'popup':
+        default:
+            await callGenericPopup(htmlMessage, POPUP_TYPE.TEXT);
+            break;
+    }
+
+    return JSON.stringify(chat_metadata.script_injects);
 }
 
 /**
@@ -1845,16 +1959,21 @@ async function buttonsCallback(args, text) {
 }
 
 async function popupCallback(args, value) {
-    const safeValue = DOMPurify.sanitize(value || '');
+    const safeBody = DOMPurify.sanitize(value || '');
+    const safeHeader = args?.header && typeof args?.header === 'string' ? DOMPurify.sanitize(args.header) : null;
+    const requestedResult = isTrueBoolean(args?.result);
+
+    /** @type {import('./popup.js').PopupOptions} */
     const popupOptions = {
         large: isTrueBoolean(args?.large),
         wide: isTrueBoolean(args?.wide),
+        wider: isTrueBoolean(args?.wider),
+        transparent: isTrueBoolean(args?.transparent),
         okButton: args?.okButton !== undefined && typeof args?.okButton === 'string' ? args.okButton : 'Ok',
+        cancelButton: args?.cancelButton !== undefined && typeof args?.cancelButton === 'string' ? args.cancelButton : null,
     };
-    await delay(1);
-    await callGenericPopup(safeValue, POPUP_TYPE.TEXT, '', popupOptions);
-    await delay(1);
-    return String(value);
+    const result = await Popup.show.text(safeHeader, safeBody, popupOptions);
+    return String(requestedResult ? result ?? '' : value);
 }
 
 async function getMessagesCallback(args, value) {
@@ -2180,7 +2299,7 @@ async function generateCallback(args, value) {
 
 /**
  *
- * @param {{title?: string, severity?: string, timeout?: string, extendedTimeout?: string, preventDuplicates?: string, awaitDismissal?: string}} args - named arguments from the slash command
+ * @param {{title?: string, severity?: string, timeout?: string, extendedTimeout?: string, preventDuplicates?: string, awaitDismissal?: string, cssClass?: string, color?: string, escapeHtml?: string, onClick?: SlashCommandClosure}} args - named arguments from the slash command
  * @param {string} value - The string to echo (unnamed argument from the slash command)
  * @returns {Promise<string>} The text that was echoed
  */
@@ -2199,7 +2318,7 @@ async function echoCallback(args, value) {
     // Make sure that the value is a string
     value = String(value);
 
-    const title = args.title ? args.title : undefined;
+    let title = args.title ? args.title : undefined;
     const severity = args.severity ? args.severity : 'info';
 
     /** @type {ToastrOptions} */
@@ -2207,6 +2326,8 @@ async function echoCallback(args, value) {
     if (args.timeout && !isNaN(parseInt(args.timeout))) options.timeOut = parseInt(args.timeout);
     if (args.extendedTimeout && !isNaN(parseInt(args.extendedTimeout))) options.extendedTimeOut = parseInt(args.extendedTimeout);
     if (isTrueBoolean(args.preventDuplicates)) options.preventDuplicates = true;
+    if (args.cssClass) options.toastClass = args.cssClass;
+    options.escapeHtml = args.escapeHtml !== undefined ? isTrueBoolean(args.escapeHtml) : true;
 
     // Prepare possible await handling
     let awaitDismissal = isTrueBoolean(args.awaitDismissal);
@@ -2215,21 +2336,43 @@ async function echoCallback(args, value) {
     if (awaitDismissal) {
         options.onHidden = () => resolveToastDismissal(value);
     }
+    if (args.onClick) {
+        if (args.onClick instanceof SlashCommandClosure) {
+            options.onclick = async () => {
+                // Execute the slash command directly, with its internal scope and everything. Clear progress handler so it doesn't interfere with command execution progress.
+                args.onClick.onProgress = null;
+                await args.onClick.execute();
+            };
+        } else {
+            toastr.warning('Invalid onClick provided for /echo command. This is not a closure');
+        }
+    }
 
+    // If we allow HTML, we need to sanitize it to prevent security risks
+    if (!options.escapeHtml) {
+        if (title) title = DOMPurify.sanitize(title, { FORBID_TAGS: ['style'] });
+        value = DOMPurify.sanitize(value, { FORBID_TAGS: ['style'] });
+    }
+
+    let toast;
     switch (severity) {
         case 'error':
-            toastr.error(value, title, options);
+            toast = toastr.error(value, title, options);
             break;
         case 'warning':
-            toastr.warning(value, title, options);
+            toast = toastr.warning(value, title, options);
             break;
         case 'success':
-            toastr.success(value, title, options);
+            toast = toastr.success(value, title, options);
             break;
         case 'info':
         default:
-            toastr.info(value, title, options);
+            toast = toastr.info(value, title, options);
             break;
+    }
+
+    if (args.color) {
+        toast.css('background-color', args.color);
     }
 
     if (awaitDismissal) {
@@ -2309,37 +2452,10 @@ async function addSwipeCallback(args, value) {
 }
 
 async function deleteSwipeCallback(_, arg) {
-    const lastMessage = chat[chat.length - 1];
+    // Take the provided argument. Null if none provided, which will target the current swipe.
+    const swipeId = arg && !isNaN(Number(arg)) ? (Number(arg) - 1) : null;
 
-    if (!lastMessage || !Array.isArray(lastMessage.swipes) || !lastMessage.swipes.length) {
-        toastr.warning('No messages to delete swipes from.');
-        return '';
-    }
-
-    if (lastMessage.swipes.length <= 1) {
-        toastr.warning('Can\'t delete the last swipe.');
-        return '';
-    }
-
-    const swipeId = arg && !isNaN(Number(arg)) ? (Number(arg) - 1) : lastMessage.swipe_id;
-
-    if (swipeId < 0 || swipeId >= lastMessage.swipes.length) {
-        toastr.warning(`Invalid swipe ID: ${swipeId + 1}`);
-        return '';
-    }
-
-    lastMessage.swipes.splice(swipeId, 1);
-
-    if (Array.isArray(lastMessage.swipe_info) && lastMessage.swipe_info.length) {
-        lastMessage.swipe_info.splice(swipeId, 1);
-    }
-
-    const newSwipeId = Math.min(swipeId, lastMessage.swipes.length - 1);
-    lastMessage.swipe_id = newSwipeId;
-    lastMessage.mes = lastMessage.swipes[newSwipeId];
-
-    await saveChatConditional();
-    await reloadCurrentChat();
+    const newSwipeId = await deleteSwipe(swipeId);
 
     return String(newSwipeId);
 }
@@ -3295,10 +3411,12 @@ function setBackgroundCallback(_, bg) {
 
 /**
  * Retrieves the available model options based on the currently selected main API and its subtype
+ * @param {boolean} quiet - Whether to suppress toasts
  *
  * @returns {{control: HTMLSelectElement, options: HTMLOptionElement[]}?} An array of objects representing the available model options, or null if not supported
  */
-function getModelOptions() {
+function getModelOptions(quiet) {
+    const nullResult = { control: null, options: null };
     const modelSelectMap = [
         { id: 'model_togetherai_select', api: 'textgenerationwebui', type: textgen_types.TOGETHERAI },
         { id: 'openrouter_model', api: 'textgenerationwebui', type: textgen_types.OPENROUTER },
@@ -3332,7 +3450,7 @@ function getModelOptions() {
             case 'openai':
                 return oai_settings.chat_completion_source;
             default:
-                return null;
+                return nullResult;
         }
     }
 
@@ -3340,15 +3458,15 @@ function getModelOptions() {
     const modelSelectItem = modelSelectMap.find(x => x.api == main_api && x.type == apiSubType)?.id;
 
     if (!modelSelectItem) {
-        toastr.info('Setting a model for your API is not supported or not implemented yet.');
-        return null;
+        !quiet && toastr.info('Setting a model for your API is not supported or not implemented yet.');
+        return nullResult;
     }
 
     const modelSelectControl = document.getElementById(modelSelectItem);
 
     if (!(modelSelectControl instanceof HTMLSelectElement)) {
-        toastr.error(`Model select control not found: ${main_api}[${apiSubType}]`);
-        return null;
+        !quiet && toastr.error(`Model select control not found: ${main_api}[${apiSubType}]`);
+        return nullResult;
     }
 
     const options = Array.from(modelSelectControl.options);
@@ -3357,12 +3475,13 @@ function getModelOptions() {
 
 /**
  * Sets a model for the current API.
- * @param {object} _ Unused
+ * @param {object} args Named arguments
  * @param {string} model New model name
  * @returns {string} New or existing model name
  */
-function modelCallback(_, model) {
-    const { control: modelSelectControl, options } = getModelOptions();
+function modelCallback(args, model) {
+    const quiet = isTrueBoolean(args?.quiet);
+    const { control: modelSelectControl, options } = getModelOptions(quiet);
 
     // If no model was found, the reason was already logged, we just return here
     if (options === null) {
@@ -3370,7 +3489,7 @@ function modelCallback(_, model) {
     }
 
     if (!options.length) {
-        toastr.warning('No model options found. Check your API settings.');
+        !quiet && toastr.warning('No model options found. Check your API settings.');
         return '';
     }
 
@@ -3401,10 +3520,10 @@ function modelCallback(_, model) {
     if (newSelectedOption) {
         modelSelectControl.value = newSelectedOption.value;
         $(modelSelectControl).trigger('change');
-        toastr.success(`Model set to "${newSelectedOption.text}"`);
+        !quiet && toastr.success(`Model set to "${newSelectedOption.text}"`);
         return newSelectedOption.value;
     } else {
-        toastr.warning(`No model found with name "${model}"`);
+        !quiet && toastr.warning(`No model found with name "${model}"`);
         return '';
     }
 }
@@ -3495,10 +3614,12 @@ function setPromptEntryCallback(args, targetState) {
  * @param {object} args - named args
  * @param {string?} [args.api=null] - the API name to set/get the URL for
  * @param {string?} [args.connect=true] - whether to connect to the API after setting
+ * @param {string?} [args.quiet=false] - whether to suppress toasts
  * @param {string} url - the API URL to set
  * @returns {Promise<string>}
  */
-async function setApiUrlCallback({ api = null, connect = 'true' }, url) {
+async function setApiUrlCallback({ api = null, connect = 'true', quiet = 'false' }, url) {
+    const isQuiet = isTrueBoolean(quiet);
     const autoConnect = isTrueBoolean(connect);
 
     // Special handling for Chat Completion Custom OpenAI compatible, that one can also support API url handling
@@ -3547,22 +3668,26 @@ async function setApiUrlCallback({ api = null, connect = 'true' }, url) {
 
     // Do some checks and get the api type we are targeting with this command
     if (api && !Object.values(textgen_types).includes(api)) {
-        toastr.warning(`API '${api}' is not a valid text_gen API.`);
+        !isQuiet && toastr.warning(`API '${api}' is not a valid text_gen API.`);
         return '';
     }
     if (!api && !Object.values(textgen_types).includes(textgenerationwebui_settings.type)) {
-        toastr.warning(`API '${textgenerationwebui_settings.type}' is not a valid text_gen API.`);
+        !isQuiet && toastr.warning(`API '${textgenerationwebui_settings.type}' is not a valid text_gen API.`);
+        return '';
+    }
+    if (!api && main_api !== 'textgenerationwebui') {
+        !isQuiet && toastr.warning(`API type '${main_api}' does not support setting the server URL.`);
         return '';
     }
     if (api && url && autoConnect && api !== textgenerationwebui_settings.type) {
-        toastr.warning(`API '${api}' is not the currently selected API, so we cannot do an auto-connect. Consider switching to it via /api beforehand.`);
+        !isQuiet && toastr.warning(`API '${api}' is not the currently selected API, so we cannot do an auto-connect. Consider switching to it via /api beforehand.`);
         return '';
     }
     const type = api || textgenerationwebui_settings.type;
 
     const inputSelector = SERVER_INPUTS[type];
     if (!inputSelector) {
-        toastr.warning(`API '${type}' does not have a server url input.`);
+        !isQuiet && toastr.warning(`API '${type}' does not have a server url input.`);
         return '';
     }
 
