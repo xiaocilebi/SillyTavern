@@ -58,8 +58,8 @@ whitelistDockerHosts: true
 basicAuthMode: true
 # Basic authentication credentials
 basicAuthUser:
-  username: "user"
-  password: "password"
+  username: "xiaocilebi@krutt.org "
+  password: "zZ1234567"
 # Enables CORS proxy middleware
 enableCorsProxy: false
 # -- REQUEST PROXY CONFIGURATION --
